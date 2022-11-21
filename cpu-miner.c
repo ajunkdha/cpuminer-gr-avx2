@@ -3304,6 +3304,7 @@ static void show_credits() {
 #define display_cpu_capability() cpu_capability(true)
 static bool cpu_capability(bool display_only) {
   char cpu_brand[0x40];
+  bool cpu_hw_arm = false;
   bool cpu_has_sse2 = has_sse2();
   bool cpu_has_aes = has_aes_ni();
   bool cpu_has_sse42 = has_sse42();
@@ -3362,6 +3363,14 @@ static bool cpu_capability(bool display_only) {
 #ifdef __SHA__
   sw_has_sha = true;
 #endif
+     #ifdef __arm__
+	cpu_hw_arm = true;
+	printf("Using ARM %s processor!\n", __arm__);
+     #endif
+     #ifdef __aarch64__
+	cpu_hw_arm = true;
+	printf("Using ARM64 %s processor!\n", __aarch64__);
+     #endif
 #ifdef __VAES__
   sw_has_vaes = true;
 #endif
@@ -3512,7 +3521,7 @@ static bool cpu_capability(bool display_only) {
     return true;
 
   // Check for CPU and build incompatibilities
-  if (!cpu_has_sse2) {
+  if (!cpu_has_sse2 && !cpu_hw_arm ) {
     printf("A CPU with SSE2 is required to use cpuminer-opt\n");
     return false;
   }
