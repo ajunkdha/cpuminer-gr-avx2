@@ -1,33 +1,42 @@
 #!/bin/bash
 
-make distclean || echo clean
+rm -v build.log 2>/dev/null
 
-rm -f config.status
-./autogen.sh || echo done
+make distclean | tee build.log
 
-GCC_VERSION=$(gcc --version | grep ^gcc | sed 's/^.* //g')
-GCC_MAJOR=$(echo $GCC_VERSION | cut -d. -f1)
+rm -f config.status | tee -a build.log
+./autogen.sh | tee -a build.log
 
-echo "Detected GCC ${GCC_VERSION} with Major ${GCC_MAJOR}"
 
-if [[ $GCC_MAJOR == 8 || $GCC_MAJOR == 9 ]]; then
+ARCH=""
+MFPU=""
 
-  CFLAGS="-O3 -march=native -mtune=native" \
-  CXXFLAGS="$CFLAGS -std=c++2a -fconcepts -Wno-ignored-attributes" \
-  ./configure --with-curl
 
-elif [[ $GCC_MAJOR -ge 10 ]]; then
-
-  CFLAGS="-O3 -march=native -mtune=native" \
-  CXXFLAGS="$CFLAGS -std=c++20 -Wno-ignored-attributes" \
-  ./configure --with-curl
-
+if [[ $(uname -m) =~ "armv7" ]]; then
+  if [[ $(uname -m) != "armv7l" ]]; then
+    echo "Detected unknown ARMv7 processor $(uname -m)" | tee -a build.log
+  fi
+  echo "Detected ARMv7 (arm) system" | tee -a build.log
+  ARCH="armv7-a"
+  if [[ ! -z "$(cat /proc/cpuinfo | grep "vfpv4")" ]]; then
+    echo "Detected vfpv4 instruction set. Changing to -mfpu=neon-vfpv4" | tee -a build.log
+    MFPU="-mfpu=neon-vfpv4"
+  else
+    echo $(cat /proc/cpuinfo | grep "vfpv4") | tee -a build.log
+    echo "Using default -mfpu=neon" | tee -a build.log
+    MFPU="-mfpu=neon"
+  fi
+elif [[ $(uname -m) =~ "aarch64" ]]; then
+  echo "Detected ARMv8 (aarch64) system" | tee -a build.log
+  ARCH="armv8-a+simd"
 else
-  echo "GCC version >= 8 is required for compilation"
-  exit
+  echo "Architecture $(uname -m). Compile as native" | tee -a build.log
+  ARCH="native"
+  MFPU=""
 fi
 
+CFLAGS="-O3 -march=${ARCH} ${MFPU} -mtune=native" CXXFLAGS="$CFLAGS -std=c++11" ./configure --with-curl | tee -a build.log
 
-make -j $(nproc)
+make -j 4 | tee -a build.log
 
-strip -s cpuminer
+strip -s cpuminer | tee -a build.log
